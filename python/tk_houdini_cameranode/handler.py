@@ -110,14 +110,14 @@ class TkCameraNodeHandler(object):
         parent = node.parent()
         geo = node.geometry()
 
-        abcFile = parent.parm('abcFile').evalAsString()
-        camPath = parent.parm('cameraPath').evalAsString()
+        abc_file = parent.parm('abcFile').evalAsString()
+        cam_path = parent.parm('cameraPath').evalAsString()
 
-        if abcFile and abcFile != '' and camPath and camPath != '':
+        if abc_file and abc_file != '' and cam_path != '-1' and cam_path != '':
             frame = hou.frame()/ hou.fps()
             
             #Set Transforms
-            matrix = hou.Matrix4(abc.getWorldXform(abcFile, camPath, frame)[0])
+            matrix = hou.Matrix4(abc.getWorldXform(abc_file, cam_path, frame)[0])
             trans = matrix.extractTranslates() * parent.evalParm('scaler')
             rotate = matrix.extractRotates()
             
@@ -125,10 +125,10 @@ class TkCameraNodeHandler(object):
             geo.setGlobalAttribValue('r',rotate)
             
             #Set Camera Parameters
-            cameraDict = abc.alembicGetCameraDict(abcFile, camPath, frame)
+            cameraDict = abc.alembicGetCameraDict(abc_file, cam_path, frame)
 
             #Plate
-            undistplate = abc.alembicArbGeometry(abcFile, camPath, 'undistplate', 0)
+            undistplate = abc.alembicArbGeometry(abc_file, cam_path, 'undistplate', 0)
 
             if undistplate and undistplate[0]:
                 undistplate = undistplate[0][0]
@@ -136,12 +136,12 @@ class TkCameraNodeHandler(object):
                 geo.setGlobalAttribValue('vm_background', undistplate)
             
             #Res
-            resx = abc.alembicArbGeometry(abcFile, camPath, 'resx', 0)[0]
-            resy = abc.alembicArbGeometry(abcFile, camPath, 'resy', 0)[0]
+            resx = abc.alembicArbGeometry(abc_file, cam_path, 'resx', 0)
+            resy = abc.alembicArbGeometry(abc_file, cam_path, 'resy', 0)
 
-            if resx and resy:
-                geo.setGlobalAttribValue('baseresx', resx[0])
-                geo.setGlobalAttribValue('baseresy', resy[0])
+            if resx[0] and resy[0]:
+                geo.setGlobalAttribValue('baseresx', resx[0][0])
+                geo.setGlobalAttribValue('baseresy', resy[0][0])
 
             #Other Attributes
             geo.setGlobalAttribValue('aspect', cameraDict.get('aspect'))
@@ -155,8 +155,8 @@ class TkCameraNodeHandler(object):
                 
     def camera_menu(self, node):
         abc_file = node.evalParm('abcFile')
-        cached_abc_file = node.cachedUserData('abcFile')
-
+        cached_abc_file = node.cachedUserData('abc_file')
+        
         if not cached_abc_file or abc_file != cached_abc_file:
             sceneHier = abc.alembicGetSceneHierarchy(abc_file, '/')
             if sceneHier and sceneHier[2]:
@@ -172,8 +172,7 @@ class TkCameraNodeHandler(object):
             node.setCachedUserData('menucamera_paths', menucamera_paths)
             
             return menucamera_paths
-
-        node.setCachedUserData('abc_file', abc_file)
+            
         return node.cachedUserData('menucamera_paths')
 
     def over_bg(self, node):
@@ -239,6 +238,9 @@ class TkCameraNodeHandler(object):
 
         for child in children:
             if child[1] == 'camera' and child[0] not in filter_cameras:
-                self._camera_paths.append(os.path.join(path, child[0]))
+                cam_path = os.path.join(path, child[0])
+                # For windows paths
+                cam_path = cam_path.replace(os.path.sep, "/")
+                self._camera_paths.append(cam_path)
             else:
                 self._find_camera(os.path.join(path, child[0]), child[2])
