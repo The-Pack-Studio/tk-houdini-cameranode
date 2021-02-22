@@ -78,7 +78,6 @@ class TkCameraNodeHandler(object):
 
     # called when the node is created.
     def setup_node(self, node):
-
         default_name = self._app.get_setting('default_node_name')
 
         node.setName(default_name, unique_name=True)
@@ -114,7 +113,7 @@ class TkCameraNodeHandler(object):
         cam_path = parent.parm('cameraPath').evalAsString()
 
         if abc_file and abc_file != '' and cam_path != '-1' and cam_path != '':
-            frame = hou.frame()/ hou.fps()
+            frame = parent.parm('samplingFrame').evalAsFloat() / hou.fps()
             
             #Set Transforms
             matrix = hou.Matrix4(abc.getWorldXform(abc_file, cam_path, frame)[0])
