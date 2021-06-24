@@ -14,9 +14,11 @@ import os
 # houdini
 import hou
 import _alembic_hom_extensions as abc
+from PIL import Image
 
 # toolkit
 import sgtk
+import pyseq
 
 class TkCameraNodeHandler(object):
     """Handle Tk file node operations and callbacks."""
@@ -105,6 +107,31 @@ class TkCameraNodeHandler(object):
         node.parm('ry').hide(True)
         node.parm('rz').hide(True)
 
+        # get plate from shotgun
+        filters = [
+            ['project.Project.name', 'is', self._app.context.project['name']],
+            ['entity', 'is', self._app.context.entity],
+            ['published_file_type.PublishedFileType.code', 'is', 'Hiero Plate'],
+            ['name', 'is', 'plate-jpeg']
+        ]
+        
+        result = self._app.shotgun.find_one('PublishedFile', filters, ['path', 'name'])
+        
+        if result:
+            # set plate path
+            plate_path = result['path']['local_path'].replace(os.sep, '/').replace('%04d', '$F4')
+            node.parm('vm_background').set(plate_path)
+
+            # set resolution
+            plate_path = plate_path.replace('$F4', '*')
+            sequences = pyseq.get_sequences(plate_path)
+            if sequences:
+                first_image_path = sequences[0][0].path
+                img = Image.open(first_image_path)
+                
+                node.parm('baseresx').set(img.size[0])
+                node.parm('baseresy').set(img.size[1])
+
     def control(self, node):
         parent = node.parent()
         geo = node.geometry()
@@ -126,22 +153,6 @@ class TkCameraNodeHandler(object):
             #Set Camera Parameters
             cameraDict = abc.alembicGetCameraDict(abc_file, cam_path, frame)
 
-            #Plate
-            undistplate = abc.alembicArbGeometry(abc_file, cam_path, 'undistplate', 0)
-
-            if undistplate and undistplate[0]:
-                undistplate = undistplate[0][0]
-                undistplate = undistplate.replace('####', '$F4')
-                geo.setGlobalAttribValue('vm_background', undistplate)
-            
-            #Res
-            resx = abc.alembicArbGeometry(abc_file, cam_path, 'resx', 0)
-            resy = abc.alembicArbGeometry(abc_file, cam_path, 'resy', 0)
-
-            if resx[0] and resy[0]:
-                geo.setGlobalAttribValue('baseresx', resx[0][0])
-                geo.setGlobalAttribValue('baseresy', resy[0][0])
-
             #Other Attributes
             geo.setGlobalAttribValue('aspect', cameraDict.get('aspect'))
 
@@ -156,43 +167,32 @@ class TkCameraNodeHandler(object):
         abc_file = node.evalParm('abcFile')
         cached_abc_file = node.cachedUserData('abc_file')
         
-        if not cached_abc_file or abc_file != cached_abc_file:
-            sceneHier = abc.alembicGetSceneHierarchy(abc_file, '/')
-            if sceneHier and sceneHier[2]:
-                self._camera_paths = []
-                self._find_camera('/', sceneHier[2])
+        if os.path.exists(abc_file):
+            if not cached_abc_file or abc_file != cached_abc_file:
+                sceneHier = abc.alembicGetSceneHierarchy(abc_file, '/')
+                if sceneHier and sceneHier[2]:
+                    self._camera_paths = []
+                    self._find_camera('/', sceneHier[2])
 
-            #Select first element to select something
-            node.parm('cameraPath').set(0)
+                #Select first element to select something
+                node.parm('cameraPath').set(0)
 
-            menucamera_paths = [x for pair in zip(self._camera_paths, self._camera_paths) for x in pair]
+                menucamera_paths = [x for pair in zip(self._camera_paths, self._camera_paths) for x in pair]
 
-            node.setCachedUserData('abc_file', abc_file)
-            node.setCachedUserData('menucamera_paths', menucamera_paths)
-            
-            return menucamera_paths
+                node.setCachedUserData('abc_file', abc_file)
+                node.setCachedUserData('menucamera_paths', menucamera_paths)
+                
+                return menucamera_paths
+        else:
+            return []
             
         return node.cachedUserData('menucamera_paths')
-
-    def over_bg(self, node):
-        if node.parm('overBg').evalAsInt():
-            node.parm('vm_background').deleteAllKeyframes()
-        else:
-            node.parm('vm_background').setExpression("details('./OUT_cam_attrib', 'vm_background')", language=hou.exprLanguage.Hscript)
 
     def over_aspect(self, node):
         if node.parm('overAspect').evalAsInt():
             node.parm('aspect').deleteAllKeyframes()
         else:
             node.parm('aspect').setExpression("detail('./OUT_cam_attrib', 'aspect', 0)", language=hou.exprLanguage.Hscript)
-
-    def over_res(self, node):
-        if node.parm('overRes').evalAsInt():
-            node.parm('baseresx').deleteAllKeyframes()
-            node.parm('baseresy').deleteAllKeyframes()
-        else:
-            node.parm('baseresx').setExpression("detail('./OUT_cam_attrib', 'baseresx', 0)", language=hou.exprLanguage.Hscript)
-            node.parm('baseresy').setExpression("detail('./OUT_cam_attrib', 'baseresy', 0)", language=hou.exprLanguage.Hscript)
 
     def over_trans(self, node):
         if node.parm('overTrans').evalAsInt():
