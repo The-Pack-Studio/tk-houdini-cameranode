@@ -112,10 +112,12 @@ class TkCameraNodeHandler(object):
             ['project.Project.name', 'is', self._app.context.project['name']],
             ['entity', 'is', self._app.context.entity],
             ['published_file_type.PublishedFileType.code', 'is', 'Hiero Plate'],
-            ['name', 'is', 'plate-jpeg']
+            ['name', 'is', 'undistort-jpeg']
         ]
+
+        order = [{"field_name":"version_number", "direction":"desc"}]
         
-        result = self._app.shotgun.find_one('PublishedFile', filters, ['path', 'name'])
+        result = self._app.shotgun.find_one('PublishedFile', filters, ['path', 'name'], order)
         
         if result:
             # set plate path
