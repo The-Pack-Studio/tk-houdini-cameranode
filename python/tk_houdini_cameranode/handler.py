@@ -111,14 +111,25 @@ class TkCameraNodeHandler(object):
         filters = [
             ['project.Project.name', 'is', self._app.context.project['name']],
             ['entity', 'is', self._app.context.entity],
-            ['published_file_type.PublishedFileType.code', 'is', 'Hiero Plate'],
             ['name', 'is', 'undistort-jpeg']
         ]
 
-        order = [{"field_name":"version_number", "direction":"desc"}]
-        
+        order = [{"field_name": "version_number", "direction": "desc"}]
         result = self._app.shotgun.find_one('PublishedFile', filters, ['path', 'name'], order)
-        
+
+        # if undistort-jpeg does not exist check for plate
+        if not result:
+            self._app.log_info('Did not find undistorted plate, looking for plate!')
+
+            filters = [
+                ['project.Project.name', 'is', self._app.context.project['name']],
+                ['entity', 'is', self._app.context.entity],
+                ['name', 'is', 'plate-jpeg']
+            ]
+
+            order = [{"field_name": "version_number", "direction": "desc"}]
+            result = self._app.shotgun.find_one('PublishedFile', filters, ['path', 'name'], order)
+
         if result:
             # set plate path
             plate_path = result['path']['local_path'].replace(os.sep, '/').replace('%04d', '$F4')
